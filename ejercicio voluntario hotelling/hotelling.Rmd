@@ -1,0 +1,121 @@
+---
+title: "Ejercicio voluntario: Distribución T² de Hotelling"
+author: "Juan José Herrera Aranda, Pilar Navarro Ramírez"
+date: "16 de enero de 2022"
+output:
+  pdf_document: default
+---
+
+```{r,echo=F}
+library("ellipse")
+```
+# Contraste sobre el vector de medias poblacional 
+
+## Matriz de covarianzas poblacional (Sigma) desconocida
+
+Definimos en primer lugar los estadísticos muestrales básicos
+```{r}
+mu0=matrix(c(70,170), nrow=2, ncol=1) # Valor de mu para la hipótesis nula
+X=matrix(c(71.45, 164.7), nrow = 2, ncol = 1) # Vector de medias muestral
+Sn=matrix(c(14.576,128.88,128.88,1441.2653),nrow=2,ncol=2) # Matriz de cuasi-covarianzas muestral
+p=2
+N=20
+n=N-1
+r12=0.889 # Coeficiente de correlación muestral
+```
+
+### Calculamos el valor del estadístico de contraste
+```{r}
+t=20*t(X-mu0)%*%solve(Sn)%*%(X-mu0)
+t
+```
+
+### Determinamos los valores de comparación teóricos bajo H_0 para distintos niveles de significación
+```{r}
+f1=qf(0.1, 2, 18, lower.tail = FALSE)*38/18 #alpha=0.1
+f2=qf(0.05, 2, 18, lower.tail = FALSE)*38/18 #alpha=0.05
+f3=qf(0.01, 2, 18, lower.tail = FALSE)*38/18 #alpha=0.01
+
+print("alpha=0.1")
+f1
+print("alpha=0.05")
+f2
+print("alpha=0.01")
+f3
+```
+Puesto que 24.65119 es mayor que todos los valores de comparación obtenidos, rechazamos la hipótesis nula para todos los niveles de significación. 
+
+## Matriz de covarianzas poblacional (Sigma) conocida
+
+Definimos la matriz de covarianzas poblacional:
+```{r}
+Sigma=matrix(c(20,100,100,1000),nrow = 2, ncol = 2)
+```
+### Calculamos el valor del estadístico de contraste
+
+```{r}
+u=20*t(X-mu0)%*%solve(Sigma)%*%(X-mu0)
+u
+```
+### Determinamos los valores de comparación teóricos bajo H_0 para distintos niveles de significación
+
+```{r}
+chi1=qchisq(0.1,2,lower.tail=FALSE)
+chi2=qchisq(0.05,2,lower.tail=FALSE)
+chi3=qchisq(0.01,2,lower.tail=FALSE)
+
+print("alpha=0.1")
+chi1
+print("alpha=0.05")
+chi2
+print("alpha=0.01")
+chi3
+```
+
+
+El valor del estadístico de contraste, 8.4026, es mayor que los dos primeros valores de comparación, esto es, para un nivel de significación de 0.1 y 0.05 se rechaza la hipótesis nula. Sin embargo 9.21034>8.4026, luego para un nivel de significación de 0.01 no se rechaza la hipótesis nula. 
+
+# Regiones de confianza en torno a mu_0 para distintos valores del nivel de confianza
+
+## Matriz de covarianzas poblacional desconocida
+```{r,echo=F}
+e1<-ellipse(x=Sn/N, centre=as.vector(mu0), t=sqrt(f1))
+plot(e1, type='l', xlim=c(67,73), ylim=c(140,200), col="blue", xlab="Altura", ylab="Peso", main="Región de confianza para nivel de confianza 0.9")
+points(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pch=20)
+text(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pos=2, offset=0.3, labels=c('mu_0', 'x_media'), cex=0.7, font=3)
+
+e2<-ellipse(x=Sn/N, centre=as.vector(mu0), t=sqrt(f2))
+plot(e2, type='l', xlim=c(67,73), ylim=c(140,200), col="blue", xlab="Altura", ylab="Peso", main="Región de confianza para nivel de confianza 0.95")
+points(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pch=20)
+text(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pos=2, offset=0.3, labels=c('mu_0', 'x_media'), cex=0.7, font=3)
+
+e3<-ellipse(x=Sn/N, centre=as.vector(mu0), t=sqrt(f3))
+plot(e3, type='l', xlim=c(67,73), ylim=c(140,200), col="blue", xlab="Altura", ylab="Peso", main="Región de confianza para nivel de confianza 0.99")
+points(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pch=20)
+text(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pos=2, offset=0.3, labels=c('mu_0', 'x_media'), cex=0.7, font=3)
+```
+
+
+Como en todos los casos el vector de medias muestral cae fuera de la región de confianza, se rechaza la hipótesis nula para los tres niveles de confianza, lo cual ya sabíamos.
+
+## Matriz de covarianzas poblacional conocida
+
+```{r,echo=F}
+e1<-ellipse(x=Sigma/N, centre=as.vector(mu0), t=sqrt(chi1))
+plot(e1, type='l', xlim=c(67,73), ylim=c(145,195), col="blue", xlab="Altura", ylab="Peso", main="Región de confianza para nivel de confianza 0.9")
+points(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pch=20)
+text(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pos=2, offset=0.3, labels=c('mu_0', 'x_media'), cex=0.7, font=3)
+
+e2<-ellipse(x=Sigma/N, centre=as.vector(mu0), t=sqrt(chi2))
+plot(e2, type='l', xlim=c(67,73), ylim=c(145,195), col="blue", xlab="Altura", ylab="Peso", main="Región de confianza para nivel de confianza 0.95")
+points(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pch=20)
+text(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pos=2, offset=0.3, labels=c('mu_0', 'x_media'), cex=0.7, font=3)
+
+e3<-ellipse(x=Sigma/N, centre=as.vector(mu0), t=sqrt(chi3))
+plot(e3, type='l', xlim=c(67,73), ylim=c(145,195), col="blue", xlab="Altura", ylab="Peso", main="Región de confianza para nivel de confianza 0.99")
+points(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pch=20)
+text(x=c(as.vector(mu0)[1], as.vector(X)[1]), y=c(as.vector(mu0)[2], as.vector(X)[2]), pos=2, offset=0.3, labels=c('mu_0', 'x_media'), cex=0.7, font=3)
+```
+
+
+Vemos que en los dos primeros casos el vector de medias muestral queda fuera de la región de confianza, por lo que para esos niveles de confianza se rechaza la hipótesis nula, mientras que para un nivel de confianza del 99%, el vector de medias muestral cae dentro de la elipse, de manera que no se rechaza la hipótesis nula, lo cual ya habíamos comprobado. 

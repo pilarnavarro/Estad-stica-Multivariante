@@ -1,0 +1,811 @@
+---
+title: "Práctica Estadística Multivariante"
+author: "Juan José Herrera Aranda, Pilar Navarro Ramírez, Adrián Rodríguez Montero"
+date: "14 de enero de 2022"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+# Análisis exploratorio univariante
+
+Se ha realizado el análisis exploratorio univariante de la tercera base de datos. Primeramente, cargamos los datos del fichero _DB_3.sav_ en un dataframe y con una codificación utf-8 y quitamos la primera columna que corresponde a los países, los cuales no nos dan información.  
+
+Observamos los datos con el objetivo de ver la forma en la que se nos presentan los datos, es decir, si son datos categóricos, numéricos continuos o discretos, positivos o negativos... y para ello se visualiza el dataframe. Observamos pues, que todos los datos son de tipo numérico continuo tanto positivos como negativos y cercanos entre sí. Destacar que las variables están estandarizadas. Además se puede apreciar que el atributo _ZTLIBROP_ tiene un valor perdido en la fila 22.
+
+```{r,echo=F}
+#install.packages("foreign")
+library(foreign)
+#install.packages("PerformanceAnalytics")
+library(PerformanceAnalytics)
+getwd()
+```
+```{r}
+datos3<-read.spss("DB_3.sav", to.data.frame=TRUE,reencode="utf-8")
+datos3<-datos3[,-1]
+datos3
+```
+
+En primer lugar mostramos un conjunto de estadísticos correspondientes a cada variable, la media, mediana, así como los valores máximos, mínimos, primer y tercer cuantil y existencia o no de valores perdidos. Aquí se puede apreciar de forma más rápida el único valor perdido presente en el conjunto de datos. 
+
+```{r,echo=F}
+summary(datos3)
+```
+Puesto que el dataset cuenta con valores perdidos, vemos en la siguiente tabla el número y la proporción de éstos con respecto al total de instancias del atributo respectivamente. Así pues, los valores perdidos de _ZTLIBROP_ representan aproximadamente el 3% de la cantidad total, inferior al 5%, por lo que no se va a  realizar ningún tipo de tratamiento a excepción de sustituirlo por la media correspondiente a dicho atributo.  
+
+```{r}
+cbind(apply(is.na(datos3),2,sum),apply(is.na(datos3),2,sum)/dim(datos3)[1])
+```
+
+Comprobamos que efectivamente ha desaparecido el valor perdido y se ha sustituido correctamente por la media.  
+
+```{r}
+#Hay menos de 5% de los valores perdidos
+not_available<-function(data,na.rm=F){
+  data[is.na(data)]<-mean(data,na.rm=T)
+  data
+}
+
+datos3$ZTLIBROP<-not_available(datos3$ZTLIBROP)
+```
+Comprobamos si se han ido los valores perdidos
+```{r}
+summary(datos3)
+```
+
+## Exploración descriptiva
+
+En este apartado iremos variable por variable obteniendo los resultados de aplicar diferentes medidas descriptivas, clásicas y resistentes, de centralidad, forma y dispersión.
+
+```{r,echo=F}
+#Definimos las medidas resistentes
+PMC<-function(x){ return((as.double(quantile(x,0.25))+as.double(quantile(x,0.75)))/2)}
+
+trimedia<-function(x){return((median(x)+PMC(x))/2)}
+
+centrimedia<-function(x){
+  indices<-(x>quantile(x,0.25)&x<quantile(x,0.75))
+  valores<-x[indices]
+  return(sum(valores)/length(valores))
+}
+
+RIQ<-function(x){return(quantile(x,0.75)-quantile(x,0.25))}
+
+MEDA<-function(x){return(median(abs(x-median(x))))}
+
+CVc<-function(x){return((quantile(x,0.75)-quantile(x,0.25))/(quantile(x,0.75)+quantile(x,0.25)))}
+
+H1<-function(x){return((quantile(x,0.25)+quantile(x,0.75)-2*median(x))/(2*median(x)))}
+H2<-function(x){return(median(x)-(quantile(x,0.1)+quantile(x,0.9))/(2))}
+H3<-function(x){return(H2(x)/median(x))}
+
+#Creamos una función que aplique todas estas medidas
+
+descriptivo<-function(x){
+  
+  temp<-rbind(PMC(x),trimedia(x),centrimedia(x))
+  rownames(temp)<-c("PMC","Trimedia","Centrimedia")
+  centralidad<-list(clasica=list(media=mean(x)),resistente=temp)
+  
+  temp<-rbind(RIQ(x),MEDA(x),CVc(x))
+  rownames(temp)<-c("Rango Inter-Cuartílico","MEDA","CVc")
+  dispersion<-list(clasica=list(desviación_típica=sd(x),Coef_varización=sd(x)/mean(x),rango=range(x)),resistente=temp)
+  
+  temp<-rbind(H1(x),H2(x),H3(x))
+  rownames(temp)<-c("Asimetría de Yule","Asimetría de Kelly","Asimetría de Kelly adimensional")
+  forma<-list(clasica=list(skewness=skewness(x),kurtosis=kurtosis(x)),resistente=temp)
+  cat(names(x))
+  return(list(centralidad=centralidad,dispersion=dispersion,forma=forma))
+}
+```
+
+#### Variable *ZPOBDENS*
+```{r,echo=F}
+descriptivo(datos3[,1])
+hist(col="darkblue",datos3[,1],main="Densidad de población")
+```
+
+Las medidas resistentes de centralidad están ligeramente desplazadas hacia la izquierda siendo PMC muy próxima a cero. El valor de MEDA es ligeramente inferior al de la desviación típica. En cuanto a las medidas de simetría tenemos que el coeficiente skewness es positivo, por lo que la distribución tendrá una cola asimétrica extendida hacia los valores positivos. Tenemos una curtosis positiva, por lo que la distribución es leptocúrtica habiendo una mayor concentración de datos entorno a la media. 
+
+En el histograma vemos una forma bastante anormal para ser una distribución estandarizada.
+
+
+
+#### Variable *ZTMINFAN*
+```{r,echo=F}
+descriptivo(datos3[,2])
+hist(col="darkblue",datos3[,2],main="Tasa de mortalidad infantil")
+```
+
+Las medidas resistentes de centralidad están ligeramente desplazadas hacia la izquierda siendo PMC muy próxima a cero. El valor de MEDA es inferior al de la desviación típica. En cuanto a las medidas de simetría tenemos que el coeficiente skewness es positivo, por lo que la distribución tendrá una cola asimétrica extendida hacia los valores positivos. Tenemos una curtosis negativa, por lo que la distribución es platicúrtica habiendo una menor concentración de datos entorno a la media.
+
+En el histograma se puede observar que lo anterior, es debido a que se tienen dos subgrupos de datos.
+
+
+
+#### Variable *ZESPVIDA*
+```{r,echo=F}
+descriptivo(datos3[,3])
+hist(col="darkblue",datos3[,3],main="Esperanza de vida")
+```
+
+Las medidas resistentes de centralidad están suavemente desplazadas a la derecha aproximandose el PMC a cero. Lo anterior sumado al rango indica un amontonamiento de los datos en la parte que está a la derecha del cero. El MEDA está ligeramente por debajo a la desviación típica. En cuanto a los estimadores de asimetría tenemos un coeficiente Skewness negativo, por lo que la distribución tendrá una cola asimétrica extendida hacia los valores negativos. Además, tenemos un coeficiente de curtosis también negativo por lo que la distribición es platicúrtica, presentando así una menor distribución de datos en torno a la media. Lo anterior se puede ver de manera visual en el histograma.  
+
+
+
+#### Variable *ZPOBURB*
+```{r,echo=F}
+descriptivo(datos3[,4])
+hist(col="darkblue",datos3[,4],main="Porcentaje de población urbana")
+```
+
+Las medidas de centralidad están un poco desplazadas ligeramente hacia la derecha que junto con el rango tenemos que los datos se agrupan más en una región centrada ligeramente desviada hacia la derecha del cero. EL MEDA se queda por debajo de la desviación típica. En cuanto a los coeficientes de asimetría tenemos un skewness negativo por lo que la distribución tendrá una cola asimétrica extendida hacia los valores negativos y la curtosis es menor que cero, así pues estamos ante una distribución platicúrtica. Lo dicho anteriormente se observa de manera intuitiva en la gráfica. 
+
+El histograma parece acorde con una normal.
+
+
+
+#### Variable *ZTMEDICO*
+```{r,echo=F}
+descriptivo(datos3[,5])
+hist(col="darkblue",datos3[,5],main=" Tasa de médicos por habitante")
+```
+
+Las medidas resistentes de centralidad están ligeramente desplazadas hacia la izquierda que sumado al rango indican que los datos se distribuyen en una amplia zona situados a la izquierda del cero. El MEDA se queda por debajo de la desviación típica. En cuento a los coeficientes de simetría tenemos que el índice skewness es positivo por lo que la distribución tendrá una cola asimétrica extendida hacia los valores positivos. Además la curtosis es negativa, por lo que la disribución es platicúrtica. 
+
+
+
+#### Variable *ZPAGRICU*
+```{r,echo=F}
+descriptivo(datos3[,6])
+hist(col="darkblue",datos3[,6],main=": Población del sector agrícola")
+```
+
+Las medidas resistentes de centralidad están ligeramente desplazadas hacia la izquierda siendo PMC muy próxima a cero. El valor de MEDA es ligeramente inferior al de la desviación típica. En cuanto a las medidas de simetría tenemos que el coeficiente skewness es positivo, por lo que la distribución tendrá una cola asimétrica extendida hacia los valores positivos. Tenemos una curtosis negativa, por lo que la distribución es platicúrtica habiendo una menor concentración de datos entorno a la media. Todo lo anterior se puede apreciar en el histograma.
+
+
+
+#### Variable *ZPSERVI*
+```{r,echo=F}
+descriptivo(datos3[,7])
+hist(col="darkblue",datos3[,7],main="Población del sector servicios")
+```
+
+Las medidas de centralidad están un poco desplazadas hacia la derecha que junto con el rango tenemos que los datos se agrupan más en una región centrada ligeramente desviada hacia la derecha del cero. EL MEDA se queda por debajo de la desviación típica. En cuanto a los coeficientes de asimetría tenemos un skewness negativo por lo que la distribución tendrá una cola asimétrica extendida hacia los valores negativos y la curtosis es menor que cero, así pues estamos ante una distribución platicúrtica. Lo dicho anteriormente se observa de manera intuitiva en la gráfica.
+
+
+
+#### Variable *ZTLIBROP*
+```{r,echo=F}
+descriptivo(datos3[,8])
+hist(col="darkblue",datos3[,8],main=" Número de libros publicados")
+```
+
+Las medidas resistentes de centralidad están ligeramente desplazadas hacia la izquierda siendo PMC próxima a cero. El valor de MEDA es inferior al de la desviación típica. En cuanto a las medidas de simetría tenemos que el coeficiente skewness es positivo, por lo que la distribución tendrá una cola asimétrica extendida hacia los valores positivos. Tenemos una curtosis negativa, por lo que la distribución es platicúrtica habiendo una menor concentración de datos entorno a la media. 
+
+En el histograma vemos una forma bastante anormal para ser una distribución estandarizada.
+
+
+
+#### Variable *ZTEJERCI*
+```{r,echo=F}
+descriptivo(datos3[,9])
+hist(col="darkblue",datos3[,9],main=" Cociente entre el número de IET y PTE")
+```
+
+Las medidas resistentes de centralidad están desplazadas hacia la izquierda siendo PMC muy próxima a cero. El valor de MEDA es ligeramente inferior al de la desviación típica. En cuanto a las medidas de simetría tenemos que el coeficiente skewness es positivo, por lo que la distribución tendrá una cola asimétrica extendida hacia los valores positivos. Tenemos una curtosis positiva, por lo que la distribución es leptocúrtica habiendo una mayor concentración de datos entorno a la media. 
+
+En el histograma vemos una forma bastante anormal para ser una distribución estandarizada. Además podemos observar que muy probablemente existan outliers.
+
+
+
+#### Variable *ZTPOBACT*
+```{r,echo=F}
+descriptivo(datos3[,10])
+hist(col="darkblue",datos3[,10],main="Cociente entre población activa y total")
+```
+
+Las medidas de centralidad están muy próximas a cero, siendo PMC positiva y muy próxima a cero. EL valor de MEDA se queda por debajo de la desviación típica. En cuanto a los coeficientes de asimetría tenemos un skewness negativo próximo a cero por lo que la distribución tendrá una cola asimétrica extendida hacia los valores negativos y la curtosis es menor que cero, así pues estamos ante una distribución platicúrtica. Lo dicho anteriormente se observa de manera intuitiva en la gráfica.
+
+El histograma parece acorde con una normal.
+
+
+#### Variable *ZTENERGI*
+```{r,echo=F}
+descriptivo(datos3[,11])
+hist(col="darkblue",datos3[,11],main=" Tasa de consumo energético")
+```
+
+Las medidas resistentes de centralidad están ligeramente desplazadas hacia la izquierda siendo PMC muy próxima a cero. El valor de MEDA es inferior al de la desviación típica. En cuanto a las medidas de simetría tenemos que el coeficiente skewness es positivo, por lo que la distribución tendrá una cola asimétrica extendida hacia los valores positivos. Tenemos una curtosis positiva, por lo que la distribución es leptocúrtica habiendo una mayor concentración de datos entorno a la media.
+
+El histograma es de una distribución que se aleja bastante de una normal. De nuevo tenemos la sospecha de que existan outliers en esta variable.
+
+Por último, en este apartado presentamos de forma conjunta los histogramas de todas las variables:
+
+```{r,echo=F}
+par(mar=c(1,1,1,1))
+par(mfrow=c(3,5))
+invisible(apply(datos3, 2,function(x){hist(x,main=NULL,col="darkblue",xlab=NULL,ylab=NULL)}))
+
+```
+
+
+## Exploración Gráfica
+
+Una forma de comprobar si hay outliers es representar un diagrama de cajas el cual para el conjunto de datos escogido es el siguiente.
+
+```{r}
+boxplot(datos3,main="Datos originales" ,
+xlab= "",
+ylab= "z-values",
+col=c(1:11),
+las=2)
+```
+
+Podemos comprobar que sí hay outliers. Puesto que no disponemos de demasiados datos en nuestra muestra (únicamente 34), no es conveniente eliminar los outliers, de modo que los sustituiremos por la media. Ahora definimos la función *outliers* para sustituir estos valores por la media. Debido a la gran variabilidad de los atributos, ejecutaremos la función varias veces para poder eliminar los outliers.
+
+
+```{r,echo=TRUE,results="markup"}
+outlier<-function(data,na.rm=T){
+  H<-1.5*IQR(data)
+  
+  if(any(data<=(quantile(data,0.25,na.rm = T)-H))){
+    data[data<=quantile(data,0.25,na.rm = T)-H]<-NA
+    data[is.na(data)]<-mean(data,na.rm=T)
+    data<-outlier(data)}
+  
+  if(any(data>=(quantile(data,0.75, na.rm = T)+H))){
+    data[data>=quantile(data,0.75, na.rm = T)+H]<-NA
+    data[is.na(data)]<-mean(data,na.rm=T)
+    data<-outlier(data)
+  }
+  return(data)
+}
+```
+
+El resultado final es el siguiente, donde podemos ver que ya no hay outliers:
+
+```{r,echo=F}
+datos3_nout<-apply(datos3, 2, outlier)
+boxplot(datos3_nout,main="Datos sin outliers" ,
+xlab= "",
+ylab= "z-values",
+col=c(1:11),
+las=2)
+```
+
+Presentamos ambos gráficos juntos para comparar los datos originales y los arreglados.
+
+```{r}
+par(mfrow=c(1,2))
+# Boxplot de los datos originales
+boxplot(datos3, main="Datos originales",
+        xlab="Variables",
+        ylab="z-values",
+        col=c(1:11))
+
+# Boxplot de los datos corregidos.
+boxplot(datos3_nout,main="Datos sin outliers",
+        xlab="Variables",
+        ylab="z-values",
+        col=c(1:11))
+```
+
+## Normalidad
+
+Para poder aplicar ciertas técnicas estadísticas, necesitamos saber si estamos tratando con variables normales, para ello usaremos el método gráfico de comparación de cuantiles *qq-plot*.
+
+
+##### Datos sin outliers
+
+```{r}
+par(mar=c(1,1,1,1))
+par(mfrow=c(3,5))
+invisible(apply(datos3_nout, 2, function(x){
+  qqnorm(x,main=NULL)
+  abline(a=0,b=1,col="red")
+}))
+```
+
+##### Datos originales
+
+```{r}
+par(mar=c(1,1,1,1))
+par(mfrow=c(3,5))
+invisible(apply(datos3, 2, function(x){
+  qqnorm(x,main=NULL)
+  abline(a=0,b=1,col="red")
+}))
+```
+
+Atendiendo a los gráficos presentados vemos como las variables que mas se acercan a la normalidad son la 4, la 6, la 7 y la 10. No tan cerca están las variables 1, 2, 3, 5, 8, 11, y con desviaciones totales encontramos la variable 9 (estas desviaciones se pueden deber a los valores outliers no tratados). Para estar más seguros vamos a realizar el test de Kolmogorov-Smirnov para la variable 9 y para algunas de las variables que presentan una pequeña desviación.
+
+
+## Test de Kolmogorov-Smirnov:
+
+Vamos a aplicar el test de Kolmogorov-Smirnov para probar la bondad del ajuste, es decir, para ver si la distribución muestral se ajusta a una distribución normal. La hipótesis nula establece que la distribución empírica es similar a una distribución normal frente a la alternativa que establece que la distribución de frecuencias observada no es consistente con la distribución normal.
+
+Para el caso de la variable `ZTEJERCI` vemos que el p-valor obtenido es 0.02069, por tanto al 95% de confianza rechazamos la hipótesis nula, es decir, no seguiría una distribución normal. Si aumentamos el nivel de confianza hasta el 99% no podemos rechazar la hipótesis nula y, por tanto se podría admitir la normalidad.
+
+```{r}
+ks.test(datos3$ZTEJERCI,"pnorm",0,1)
+```
+
+Hemos realizado el test sobre algunas de las variables que presentan una ligera desviación atendiendo al método gráfico *qq-plot* y hemos podido comprobar que en el resto de variables no podemos rechazar la hipótesis nula ya que, el p-valor es superior al valor de 0.2 en todas las variables.
+
+```{r}
+ks.test(datos3$ZPOBDENS,"pnorm",0,1)
+ks.test(datos3$ZTLIBROP,"pnorm",0,1)
+ks.test(datos3$ZTENERGI,"pnorm",0,1)
+```
+
+# Correlación entre las variables
+
+```{r,echo=F} 
+#install.packages("psych")
+#install.packages("polycor")
+#install.packages("ggcorrplot")
+#install.packages("corrr")
+#install.packages("polycor")
+library(psych)
+library(ggcorrplot)
+library(corrplot)
+library(corrr)
+library(polycor)
+#Nos quedamos con los datos sin outliers
+datos_pca<-datos3_nout
+```
+
+En primer lugar vemos la matriz de correlación, para tener una idea de la correlación en la muestra.
+
+```{r}
+cor(datos_pca)
+```
+
+Representamos visualmente las correlaciones:
+
+```{r}
+poly_cor<-hetcor(datos_pca)$correlations
+ggcorrplot(poly_cor, type="lower",hc.order=T)
+corrplot(cor(datos_pca), order = "hclust", tl.col='black', tl.cex=1)
+correlaciones <- correlate(datos_pca)  
+rplot(correlaciones, legend = TRUE, colours = c("firebrick1", "black","darkcyan"), print_cor = TRUE) 
+```
+
+Podemos observar que hay cierta correlación entre las variables, ya que la matriz de correlaciones dista de la matriz identidad.
+
+Por ejemplo vemos que la variable ZTMINFAN esta correlada con la variable ZESPVIDA en un 96.7 % o la
+variable ZPAGRICU  con ZPOBURB en un 93.8%.
+
+Para comprobar que a nivel poblacional efectivamente están correladas las variables usaremos el test de Bartlett. La hipótesis nula es que el determinante de la matriz de correlaciones es uno.
+
+Para aplicar el test de Bartlett, primero es necesario normalizar los datos:
+
+```{r}
+# Se normalizan los datos
+datos_normalizados<-scale(datos_pca)
+# Se hace el test de esfericidad
+cortest.bartlett(cor(datos_normalizados),n=ncol(datos_normalizados))
+```
+
+Como el p-valor es 0.03913137 (inferior 0,15) rechazamos la hipótesis nula y concluimos que las variables están correladas, luego tiene sentido aplicar análisis de componentes principales.
+
+# Análisis de componentes principales (ACP)
+
+Llevamos a cabo un análisis de componentes principales y se muestran la desviación típica, la varianza explicada y varianza acumulada de dichas componentes.
+
+```{r} 
+# Pasamos los par?metros "scale" y "center" a TRUE para considerar
+# los datos originales normalizados
+PCA<-prcomp(datos_pca, scale=T, center = T)
+#Obtenemos la desviación típica, la varianza explicada y varianza acumulada de las componentes principales
+summary(PCA)
+
+```
+
+```{r,echo=F} 
+#install.packages("ggplot2")
+library("ggplot2")
+```
+
+Vemos la proporción de varianza explicada:
+
+```{r} 
+varianza_explicada <- PCA$sdev^2 / sum(PCA$sdev^2)
+varianza_explicada
+#Gráficamente
+ggplot(data = data.frame(varianza_explicada, pc = 1:11),
+       aes(x = pc, y = varianza_explicada, fill=varianza_explicada )) +
+  geom_col(width = 0.3) +
+  scale_y_continuous(limits = c(0,0.6)) + theme_bw() +
+  labs(x = "Componente principal", y= " Proporción de varianza explicada")
+```
+
+Vemos la varianza acumulada:
+
+```{r}
+varianza_acum<-cumsum(varianza_explicada)
+varianza_acum
+#Gráficamente
+ggplot( data = data.frame(varianza_acum, pc = 1:11),
+        aes(x = pc, y = varianza_acum ,fill=varianza_acum )) +
+  geom_col(width = 0.5) +
+  scale_y_continuous(limits = c(0,1)) +
+  theme_bw() +
+  labs(x = "Componente principal",
+       y = "Proporción varianza acumulada")
+```
+
+## Selección del número óptimo de componentes principales
+
+Usamos la regla de Abdi et al. (2010), esto es, se promedian las varianzas de las componentes principales y se seleccionan aquellas cuya proporción de varianza explicada supera la media.
+
+```{r,echo=F} 
+PCA$sdev^2
+mean(PCA$sdev^2)
+```
+
+Como la media es 1, nos quedamos con las tres primeras componentes principales, pues la proporción de varianza explicada por cada una de ellas es mayor a 1. La varianza acumulada es 0.8056758, luego estas componentes pricipales explican el 80,57% de la varianza original. 
+
+Además, usamos ahora el método del codo con Scree plot:
+
+```{r} 
+scree(poly_cor) 
+```
+
+En efecto, el método del codo confirma lo que ya sabíamos, que el número óptimo de componentes principales es 3. 
+
+## Pesos de cada variable en el sistema determinado por las tres primeras componentes principales
+
+Veamos ahora los pesos de cada variable en la correspondiente componente principal.
+
+```{r,echo=F} 
+pesos<-PCA$rotation[,1:3]
+pesos
+```
+
+Así, si consideramos la base formada por las variables {ZPOBDENS, ZTMINFAN, ZESPVIDA, ZPOBURB, ZTMEDICO, ZPAGRICU, ZPSERVI, ZTLIBROP, ZTEJERCI, ZTPOBACT, ZTENERGI} las coordenadas de cada una de las componentes principales en dicha base serían:
+
+```{r,echo=F} 
+PC1<-pesos[,1]
+print("PC1")
+PC1
+PC2<-pesos[,2]
+print("PC2")
+PC2
+PC3<-pesos[,3]
+print("PC3")
+PC3
+
+```
+
+Las coordenadas de los 6 primeros datos originales (tipificados) en el sistema de referencia 
+determinado por las 3 componentes principales son las siguientes:
+
+```{r,echo=F} 
+head(PCA$x)[,1:3]
+library("factoextra")
+```
+
+Podríamos mostrar las coordenadas de las 34 observaciones, pero con las 6 primeras es suficiente para hacernos una idea del susodicho sistema de referencia. 
+
+Ahora veamos gráficamente el peso que tienen las variables en la definición de las componentes principales.
+
+**Comparativa entre la primera y segunda componente principal:**
+
+```{r} 
+
+fviz_pca_var(PCA,
+             repel=TRUE,col.var="cos2",
+             legend.title="Distancia")+theme_bw()
+```
+
+Vemos que algunas variables como ZPSERVI o ZTPOBACT están casi correladas por igual con ambas componentes principales. Sin embargo, hay muchas que están más correladas con la primera componente principal como ZTLIBROP, ZTMEDICO y ZESPVIDA, siendo esta última la que presenta una mayor correlación positiva con dicha componente principal, mientras que ZTMINFAN presenta una mayor correlación negativa con la primera componente. Por otro lado tenemos un par de variables, ZTEJERC y ZPOBDENS, que están más correladas con la segunda componente principal.
+
+**Comparativa entre la primera y tercera componente principal:**
+
+```{r}
+
+fviz_pca_var(PCA,axes=c(1,3),
+             repel=TRUE,col.var="cos2",
+             legend.title="Distancia")+theme_bw()
+```
+
+En este caso la mayoría de las variables están más correladas con la primera componente principal, tanto positiva como negativamente. únicamente vemos una variable, ZTEJERCI que está casi perfectamente correlada negativamente con la tercera componente principal. Apreciamos además una variable, ZTPOBACT, que presenta prácticamente la misma correlación positiva con ambas componentes principales. Además, notamos  que hay una mayor correlación de las variables con la primera componente principal respecto a la tercera de la que había con la primera componente con respecto a la segunda en el primer gráfico, ya que las flechas están más pegadas al eje horizontal.
+
+
+**Comparativa entre la segunda y tercera componente principal**
+
+```{r}
+fviz_pca_var(PCA,axes=c(2,3),
+             repel=TRUE,col.var="cos2",
+             legend.title="Distancia")+theme_bw()
+```
+
+Como ocurría en el caso anterior, solo la variable ZTEJERCI está fuertemente correlada con la tercera componente principal, aunque aquí esta variable tiene algo más de peso en la segunda componente principal de la que tenía en la primera. Vemos que el resto de variables están más correladas con la segunda componente principal, aunque en general no en gran medida, pues las flechas son pequeñas y de color oscuro. La variable ZTPOBACT, al igual que en el gráfico anterior, influye casi por igual en ambas componentes principales, siendo en este gráfico la correlación positiva mayor, pues la flecha es de mayor longitud. 
+
+Podemos concluir entonces que la componente principal con la que están menos correladas las variables es la tercera, siendo únicamente ZTEJERCI la variable que más peso tiene en la tercera componente, aunque el resto también influyen un poco en dicha componente. Por ejemplo ZTPOBACT tiene un peso considerable en la tercera componente. El resto de variables tienen, en general, más peso en la primera componente, aunque su influencia en la segunda componente también es considerable, estando algunas variables más correladas con la segunda que con la primera. 
+
+Representamos ahora conjuntamente las variables y las observaciones relacionando visualmente las posibles relaciones entre las observaciones, las contribuciones de estas a las varianzas de las componentes y el peso de las variables en cada componentes principal. Con la orden "contrib" podemos identificar con colores aquellas observaciones que mayor varianza explican de las componentes principales, siendo la influencia de la observación menor cuanto más cerca se encuentre esta del origen. 
+
+**Variables y observaciones en la 1º  y 2ª componente principal**
+
+```{r} 
+fviz_pca(PCA,axes=c(1,2),
+         alpha.ind ="contrib", col.var = "cos2",col.ind="seagreen",
+         gradient.cols = c("#FDF50E", "#FD960E", "#FD1E0E"),
+         repel=TRUE,
+         legend.title="Distancia")+theme_bw()
+```
+
+Notamos que la observación que menos influye en la varianza explicada es la 9 pues está prácticamente sobre el origen de coordenadas. Las observaciones que más afectan a la primera componente principal son la 24 y la 29, ya que están más en los extremos del eje horizontal. Por otra parte, en la segunda componente principal, tienen más peso la observación 7 y 8. 
+
+**Variables y observaciones en la 1º  y 3ª componente principal**
+
+```{r} 
+fviz_pca(PCA,axes=c(1,3),
+         alpha.ind ="contrib", col.var = "cos2",col.ind="seagreen",
+         gradient.cols = c("#FDF50E", "#FD960E", "#FD1E0E"),
+         repel=TRUE,
+         legend.title="Distancia")+theme_bw()
+```
+
+En este caso observamos que los datos 9 y 7 son los que menos afectan a las primera y tercera componente principal. Al igual que observamos en el gráfico anterior, los datos 29 y 24 son los que mayor influencia tienen en la primera componente, mientras que las observaciones 20 y 31 afectan en mayor medida a la tercera componente. 
+
+**Variables y observaciones en la 2ª  y 3ª componente principal**
+
+```{r}
+fviz_pca(PCA,axes=c(2,3),
+         alpha.ind ="contrib", col.var = "cos2",col.ind="seagreen",
+         gradient.cols = c("#FDF50E", "#FD960E", "#FD1E0E"),
+         repel=TRUE,
+         legend.title="Distancia")+theme_bw()
+```
+
+La observación 9 vuelve a ser la que menos afecta a las componentes principales, seguida de la 19 y la 13. La segunda componente se ve más influenciada, como ya sabíamos, por las observaciones 7 y 8. Con respecto a la tercera componente, el dato 31 es el más influyente, seguido por el 20, lo cual coincide con lo visto en el gráfico anterior. 
+
+Podríamos considerar eliminar la observación 9 para este análisis, pues no parece afectar a las componentes principales seleccionadas. Por su parte, la observación 31 parece decisiva en la elección de la tercera componente principal. El resto de datos afectan por igual a la primera y segunda componente, con algunas excepciones de datos extremos que influyen en mayor medida en una u otra componente, como por ejemplo la observación 7, con gran peso en la segunda componente pero casi nulo en la primera. 
+
+# Análisis Factorial
+
+## Determinación del número óptimo de factores 
+Usaremos el criterio Scree plot y el análisis paralelo.
+
+**Scree Plot**
+
+```{r,echo=F} 
+scree(poly_cor) 
+```
+
+Por el método del codo podemos deducir que el númeroóptimo de factores se encuentra entre 2 y 3. 
+
+**Análisis paralelo**
+
+```{r,echo=F} 
+fa.parallel(poly_cor,n.obs=200,fa="fa",fm="minres")
+```
+
+El análisis paralelo indica que hay al menos dos factores, siendo posible considerar un tercer factor, pues la línea de puntos del análisis paralelo cruza la línea sólida del análisis factorial en el tercer factor, o incluso el cuarto y quinto.
+
+
+Lo comprobamos ahora con un test de hipótesis, que contrasta si el número de factores que se le proporcionan es o no suficiente. Le proporcionamos en primer lugar 2 factores, pues son los que parece indicar tanto el scree plot como el análisis paralelo: 
+
+```{r,echo=F} 
+library(stats)
+```
+```{r}
+factanal(datos_pca,factors=2, rotation="varimax")
+```
+
+El p-valor es pequeño, incluso menor que 0.01, por lo que se rechazaría la hipótesis nula de que el número de factores es suficiente. Lo ejecutamos ahora con tres factores:
+
+```{r}
+factanal(datos_pca,factors=3, rotation="varimax")
+```
+
+En este caso el p-valor es grande, mucho mayor que 0.05, por lo que no rechazamos la hiṕotesis nula y deducimos que 3 factores son suficientes al nivel de confianza del 95%. 
+
+Todo parece indicar, por lo tanto, que el númeroóptimo de factores sería de 3, así que tomamos este número de factores para llevar a cabo el análisis factorial. 
+
+## Modelo factorial
+
+Estimamos el modelo factorial con 3 factores. Para ello, haremos una rotación  usando el enfoque **Varimax** para poder tener una interpretación más simple. Este método maximiza la varianza por columnas de la matriz de pesos factorial.
+
+```{r} 
+modelo_varimax<-fa(poly_cor,nfactors = 3,rotate = "varimax",
+                   fa="mle")
+```
+
+Vemos la matriz de pesos factorial (rotada)
+
+```{r}
+print(modelo_varimax$loadings,cut=0) 
+```
+
+Veamos ahora visualmente con qué variables correlaciona cada uno de los factores
+
+```{r}
+fa.diagram(modelo_varimax)
+```
+
+Podemos ver que el primer factor tiene una alta correlación con un gran número de variables, tanto positiva como negativa. En cambio, el segundo factor sólo se correlaciona en gran medida con dos variables, ZTPOBACT y ZTENERGI, siendo la correlación con la variable ZTPOBACT perfecta y positiva. El tercer factor tiene una correlación alta únicamente con una variable, ZTEJERCI. Hay una variable, ZPOBDENS, que presenta correlación baja con los tres factores.
+
+En cuanto a la varianza acumulada explicada esta es de 0.739, es decir, el 74% de la varianza original queda explicada por los tres factores determinados. 
+
+# Análisis de la normalidad Multivariante
+
+```{r,echo=F}
+#install.packages("MVN")
+library(MVN)
+```
+```{r}
+outliers <- mvn(data = datos3, mvnTest = "hz", multivariateOutlierMethod = "quan")
+```
+
+Se detectan 11 outliers, de los cuales ya nos ocupamos anteriormente, pero ninguno de los dos test realizados a continuación encuentran evidencias al 5% de significación de falta de normalidad multivariante, es decir, al 95% de confianza podemos suponer que hay normalidad multivariante en la muestra.
+
+**Test Henze-Zirkler**
+
+```{r}
+hz_test <- mvn(data = datos3, mvnTest = "hz", multivariatePlot = "qq")
+hz_test$multivariateNormality
+```
+
+**Test Mardia**
+
+```{r}
+result <- mvn(data = datos3, mvnTest = "mardia", multivariatePlot = "qq")
+result$multivariateNormality
+```
+
+# Análisis discriminante
+
+Empezamos añadiendo una variable cualitativa con dos categorías para poder llevar a cabo la clasificación. Esta variable se ha añadido teniendo en cuenta el atributo ZESPVIDA, las instancias que queden por debajo de la mediana se han etiquetado como 'a' y las que queden por encima como 'b'. Mostramos algunas instancias para ver si se ha realizado lo anterior correctamente.
+
+```{r}
+labels<-c("a","a","b","b","a","b","b","a","a","a","b","a","b","b","a","a","a","b","b","b","a","a","a","a","a","b","b","b","b","b","a","b","b","a")
+datos<-data.frame(datos3_nout,labels)
+datos$labels<-as.factor(datos$labels)
+head(datos)
+```
+
+## Exploración gráfica de los datos
+
+Exploramos como de bien (o mal) clasifica cada una de las variables. Para ello vemos qué **pares de variables** separan mejor entre las dos clases. 
+
+```{r}
+pairs(x = datos[, c("ZPOBDENS","ZTMINFAN","ZESPVIDA","ZPOBURB", "ZTMEDICO", "ZPAGRICU", "ZPSERVI","ZTLIBROP","ZTEJERCI","ZTPOBACT","ZTENERGI")], col = c("firebrick", "green3")[datos$labels], pch = 19)
+```
+
+Las variables "Esperanza de vida" y "Población del sector agrícola", por ejemplo, separan adecuadamente las dos clases. 
+
+## Homogeneidad de la varianza
+
+Contrastamos ahora la hipótesis de que la matriz de covarianzas es constante en todas las clases. Para ello usamos el **test de Box M**, que es una extensión del de Barttlet para escenarios multivariantes. Este test es sensible a que los datos efectivamente se distribuyan según una normal multivariante, lo cual hemos comprobado que en nuestro caso se cumple. Por este motivo se recomienda utilizar una significación (p-value) menor que 0.001.
+
+La **hipóstesis nula** a contrastar es la de igualdad de **matrices de covarianzas** en todos los grupos.
+
+```{r,echo=F}
+#install.packages("biotools")
+library(biotools)
+```
+```{r}
+boxM(data = datos[, 1:11], grouping = datos[, 12])
+```
+
+Puesto que el p-valor es muy pequeño, menor a 0.001, rechazamos la hipótesis nula de que las matrices de covarianzas son iguales para todos los grupos, esto es, **asumimos la NO homogeneidad de varianzas**. Por tanto, en este caso es conveniente usar un análisis discriminante cuadrático (QDA). 
+
+## Función discriminante (cuadrática)
+
+Se va a usar la función **qda** que viene en el paquete MASS
+
+```{r,echo=F}
+#install.packages("MASS")
+library(MASS)
+```
+```{r}
+modelo_qda <- qda(formula = labels~ . ,data = datos)
+modelo_qda
+```
+
+La salida de este objeto, nos muestra las probabilidades a priori de cada grupo, en este caso 0.5 y las medias de cada regresor por grupo.
+
+Una vez construido el clasificador podemos clasificar nuevos datos en función de sus medidas sin más que llamar a la función predict. Por ejemplo, veamos como se clasifica un nuevo registros con los siguientes valores _ZPOBDENS=0.3,ZTMINFAN=-0.2,ZESPVIDA=0.1,ZPOBURB=-0.1,ZTMEDICO=0.5,ZPAGRICU=-0.5, ZPSERVI=0.5, ZTLIBROP=0.3, ZTEJERCI=-0.8,ZTPOBACT=0.2,ZTENERGI=0.1_
+
+```{r}
+nuevas_observaciones <- data.frame(ZPOBDENS=0.3,ZTMINFAN=-0.2,ZESPVIDA=0.1,ZPOBURB=-0.1,ZTMEDICO=0.5,ZPAGRICU=-0.5, ZPSERVI=0.5, ZTLIBROP=0.3, ZTEJERCI=-0.8,ZTPOBACT=0.2,ZTENERGI=0.1)  
+predict(object = modelo_qda, newdata = nuevas_observaciones)
+```
+
+Según la función discriminante, la probabilidad a posteriori de que el nuevo registro tenga la etiqueta _a_ es del 91,7% mientras la de que esté en la etiqueta _b_ es inferior al 1%. Por tanto este dato sería clasificado con la etiqueta _a_. En efecto, el valor de _ZESPVIDA_ para este nuevo registro (0.1) está por debajo de la mediana (0.2781) y este hecho tiene mucha influencia. 
+
+### Matriz de confusión 
+Construimos ahora una matriz de confusión usando previamente validación cruzada en el modelo de clasificación
+
+```{r}
+library('biotools')
+pred <- predict(modelo_qda, dimen = 1)
+confusionmatrix(datos$labels, pred$class)
+```
+
+Podemos comprobar que todos los ejemplos de entrenamiento se clasifican correctamente.  Veamos ahora el porcentaje de errores de clasificación:
+
+```{r}
+trainig_error <- mean(datos$labels != pred$class) * 100
+paste("trainig_error=", trainig_error, "%")
+```
+
+El porcentaje de aciertos es del 100%. Este hecho nos dice que el entrenamiento ha sido perfecto, lo que nos lleva a pensar en la posibilidad de un sobreajuste, aunque con tampoco datos y con la facilidad de la base de datos podemos descartarlo.  
+
+## Visualización de las clasificaciones
+
+Representamos los **límites de clasificación** del modelo para cada par de predictores. Cada color representa una región de clasificación acorde al modelo, se muestra el centroide de cada región y el valor real de las observaciones.
+
+```{r,echo=F}
+#install.packages("klaR")
+library(klaR)
+```
+```{r}
+par(mar=c(1,1,1,1))
+partimat(formula =labels ~ datos$ZPOBDENS + datos$ZTMINFAN + datos$ZESPVIDA + datos$ZPOBURB , data = datos,
+         method = "qda", prec = 400,
+         image.colors = c("darkgoldenrod1", "skyblue2"),
+         col.mean = "firebrick")
+```
+
+Observamos que hay varios pares de variables que clasifican perfectamente todas las observaciones, por lo que quizás no sería necesario considerar todas las variables. 
+
+Debido al número de datos tan reducido del que disponemos, quizás llevar a cabo un análisis cuadrático no tenga mucho sentido, a pesar de la no homegenidad de la varianza ante la que nos encontramos. Por tanto, realizaremos un análisis discriminante lineal para comparar los resultados. 
+
+## Función discriminante (lineal)
+
+Ahora vamos a aplicar el análisis discriminante lineal, para ello hay que tener en cuenta que todas las variables deben distribuirse normalmente ya que de lo contrario los resultados estarán sesgados. Además también se debe de tener en cuenta los outliers y que la escala de todas las variables sean comparables, para ello se estandarizan. El método LDA asume que los predictores están normalmente distribuidos, es decir, provienen de la distribución gaussiana.  
+
+Creamos el modelo y lo entrenamos 
+
+```{r}
+modelo_lda<-lda(formula = labels~ . ,data = datos)
+modelo_lda
+```
+
+Una vez construido el clasificador podemos clasificar nuevos datos en función de sus medidas sin más que llamar a la función predict. Por ejemplo, veamos como se clasifica un nuevo registros con los siguientes valores _ZPOBDENS=0.3,ZTMINFAN=-0.2,ZESPVIDA=0.1,ZPOBURB=-0.1,ZTMEDICO=0.5,ZPAGRICU=-0.5, ZPSERVI=0.5, ZTLIBROP=0.3, ZTEJERCI=-0.8,ZTPOBACT=0.2,ZTENERGI=0.1_
+
+```{r}
+nuevas_observaciones <- data.frame(ZPOBDENS=0.3,ZTMINFAN=-0.2,ZESPVIDA=0.1,ZPOBURB=-0.1,ZTMEDICO=0.5,ZPAGRICU=-0.5, ZPSERVI=0.5, ZTLIBROP=0.3, ZTEJERCI=-0.8,ZTPOBACT=0.2,ZTENERGI=0.1)  
+predict(object = modelo_lda, newdata = nuevas_observaciones)
+```
+
+Observamos ahora que la etiqueta predicha para este nuevo registro es la _b_, entrando en conflicto con la predicción por parte del predictor cuadrático. Aún así tampoco podemos saber con certeza que predicción es la correcta y cual la incorrecta, según el criterio usado en la elección de las etiquetas, es lógico pensar que la etiqueta correcta sería la _a_ y la incorrecta la _b_. Pero puede ocurrir que existan otro tipo de relaciones entre atributos que no hayamos tenido en cuenta y que influyan, provocando este conflicto entre las etiquetas predichas por parte de ambos predictores.
+
+## Matriz de confusión
+Mostramos a continuación la matriz de confusión usando validación cruzada en los ejemplos de entrenamiento 
+
+```{r}
+pred <- predict(modelo_lda, dimen = 1)
+confusionmatrix(datos$labels, pred$class)
+```
+
+Podemos comprobar que únicamente un dato de entrenamiento se clasifican incorrectamente. Veamos ahora el porcentaje de errores de clasificación:
+
+```{r}
+trainig_error <- mean(datos$labels != pred$class) * 100
+paste("trainig_error=", trainig_error, "%")
+```
+
+En consecuencia, el porcentaje de aciertos es del 97.1%. Podemos notar que la clasificación en el entrenamiento no ha sido perfecta pues es lógico pensar que la clasificación anterior pudiera haber sido errónea. Sin embargo, al ser la tasa de acierto tan alta tampoco resulta fácil afirmarlo con behemencia. Por otro lado, al no tener un acierto del 100%, podemos llegar a pensar que la capacidad de generalizar puede ser mayor que el caso anterior, pues no habría tanto sobreajuste. Aunque como antes se explicó, podemos llegar a descartar la presencia de sobreajuste. 
+
+## Visualización de las clasificaciones
+Como hicimos en el análisis discriminante con la función cuadrática, aquí también se representará los **límites de clasificación** del modelo para cada par de predictores. Cada color representa una región de clasificación acorde al modelo, se muestra el centroide de cada región y el valor real de las observaciones.
+
+```{r}
+par(mar=c(1,1,1,1))
+partimat(formula =labels ~ datos$ZPOBDENS + datos$ZTMINFAN + datos$ZESPVIDA + datos$ZPOBURB , data = datos,
+         method = "lda", prec = 400,
+         image.colors = c("darkgoldenrod1", "skyblue2"),
+         col.mean = "firebrick")
+```
+
+Como conclusión general, podemos decir que en el entrenamiento QDA lo hace perfecto mientras que LDA es casi perfecto, por lo que pueden existir ciertos indicios de  sobreajuste siendo esto más notorio en QDA que en LDA, aunque debido a las pocas instancias de la base de datos y a este ejemplo que nos hemos inventado podríamos descartar esta última idea. En la predicción ambos predictores entran en conflicto con un mismo registro, siendo la predicción del QDA más razonable que la del LDA aunque no se puede comprobar a ciencia cierta cual ha acertado y cual ha fallado, pues nos hemos inventado las etiquetas de acuerdo a un criterio sin saber cuán de lógico es. 
+
+Teniendo en cuenta que los límites de decisión del LDA y del QDA son lineales y cuadráticos respectivamente, podemos deducir que para grandes bases de datos, el QDA es más factible pues tiene mayor flexibilidad que el LDA, presentando este menos sesgo pero mayor ajuste a la varianza de los datos. Mientras que para bases de datos más reducidas, como por ejemplo esta, LDA debería conseguir mejores clasificaciones de nuevos datos, esto es, generaliza mejor en datos nuevos que QDA, pues al entrenar el modelo con pocos ejemplos de entrenamiento se nos presenta un escenario en el que evitar la varianza es crucial. 
